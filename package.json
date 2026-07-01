@@ -1,0 +1,19 @@
+{
+  "name": "meri-dukan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.3.0",
+    "twilio": "^6.0.2",
+    "xlsx": "^0.18.5"
+  }
+}

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Rajat Traders</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f0f;color:#e8e8e2;font-family:system-ui;display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:#0a0a0a;border-right:1px solid #1e1e1e;padding:1.5rem 0;display:flex;flex-direction:column}
+.logo{padding:0 1.25rem 1.25rem;border-bottom:1px solid #1e1e1e;margin-bottom:.75rem}
+.logo-name{font-size:15px;font-weight:500}
+.logo-sub{font-size:12px;color:#555}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 1.25rem;cursor:pointer;font-size:13px;color:#888;border-left:2px solid transparent}
+.nav-item:hover{color:#ccc;background:#111}
+.nav-item.active{color:#e8e8e2;background:#1a1a1a;border-left-color:#7c6af7}
+.main{display:flex;flex-direction:column}
+.topbar{padding:1rem 1.5rem;border-bottom:1px solid #1e1e1e;display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:16px;font-weight:500}
+.content{padding:1.5rem;flex:1}
+.section{display:none}.section.active{display:block}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.25rem}
+.stat-card{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:1rem}
+.stat-label{font-size:11px;color:#555;margin-bottom:6px}
+.stat-val{font-size:22px;font-weight:500}
+.card{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
+.card-head{font-size:13px;color:#888;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between}
+input,select{background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px;color:#e8e8e2;font-size:13px;width:100%;margin-bottom:10px}
+input:focus{outline:none;border-color:#7c6af7}
+.btn{border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center}
+.btn-primary{background:#7c6af7;color:#fff;width:100%}
+.btn-primary:hover{background:#6a58e0}
+.btn-primary:disabled{background:#2a2a2a;color:#555;cursor:not-allowed}
+.btn-outline{background:#0a0a0a;border:1px solid #2a2a2a;color:#e8e8e2;padding:8px 14px;font-size:12px}
+.btn-outline:hover{border-color:#7c6af7;color:#7c6af7}
+.log-box{background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:1rem;min-height:120px;font-size:12px;font-family:monospace}
+.log-line{margin-bottom:4px;color:#555}
+.log-line.purple{color:#7c6af7}
+.log-line.green{color:#639922}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;color:#555;border-bottom:1px solid #1e1e1e;font-weight:400}
+td{padding:9px 10px;color:#bbb;border-bottom:1px solid #0f0f0f}
+tr:hover td{background:#111}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px}
+.ok{background:#173404;color:#97c459}.pend{background:#412402;color:#ef9f27}
+.pulse{display:none;align-items:center;gap:8px;font-size:12px;color:#7c6af7;margin-bottom:10px}
+.pulse.show{display:flex}
+.dot{width:8px;height:8px;border-radius:50%;background:#7c6af7;animation:p 1s infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-name">Rajat Traders</div>
+    <div class="logo-sub">Delhi Sagarpur</div>
+  </div>
+  <div class="nav-item active" onclick="nav('dashboard',this)"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+  <div class="nav-item" onclick="nav('call',this)"><i class="ti ti-phone-outgoing"></i> Call customer</div>
+  <div class="nav-item" onclick="nav('orders',this)"><i class="ti ti-clipboard-list"></i> Orders</div>
+  <div style="flex:1"></div>
+  <div class="nav-item" style="color:#e05555" onclick="alert('Server band karo terminal se: Ctrl+C')"><i class="ti ti-power"></i> Stop server</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="page-title">Dashboard</span>
+    <span style="font-size:12px;color:#3b6d11">● Server connected</span>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="section active" id="sec-dashboard">
+      <div class="stats">
+        <div class="stat-card"><div class="stat-label">Total orders</div><div class="stat-val" id="total-orders">—</div></div>
+        <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-val" id="confirmed-orders">—</div></div>
+        <div class="stat-card"><div class="stat-label">Delivered</div><div class="stat-val" id="delivered-orders">—</div></div>
+        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-val" id="pending-orders">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Recent orders</div>
+        <table><thead><tr><th>Order no</th><th>Customer</th><th>Order</th><th>Status</th></tr></thead>
+        <tbody id="recent-tbody"><tr><td colspan="4" style="color:#555;text-align:center;padding:20px">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CALL -->
+    <div class="section" id="sec-call">
+      <div class="card">
+        <div class="card-head">Call karo customer ko</div>
+        <input type="tel" id="phone-input" placeholder="+91 98765 43210" />
+        <input type="text" id="name-input" placeholder="Customer naam (optional)" />
+        <div class="pulse" id="pulse"><div class="dot"></div> Call chal rahi hai...</div>
+        <button class="btn btn-primary" id="call-btn" onclick="makeCall()">
+          <i class="ti ti-phone"></i> Call shuru karo
+        </button>
+      </div>
+      <div class="card">
+        <div class="card-head">Call log</div>
+        <div class="log-box" id="call-log"><div class="log-line">— Abhi koi call nahi</div></div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="section" id="sec-orders">
+      <div class="card">
+        <div class="card-head">
+          Saare orders
+          <button class="btn btn-outline" onclick="downloadOrders()"><i class="ti ti-download"></i> Excel download</button>
+        </div>
+        <div style="overflow-x:auto">
+        <table><thead><tr>
+          <th>Order no</th><th>Date</th><th>Customer</th><th>Phone</th><th>Order</th><th>Address</th><th>Status</th><th>Delivery</th>
+        </tr></thead>
+        <tbody id="orders-tbody"><tr><td colspan="8" style="color:#555;text-align:center;padding:20px">Loading...</td></tr></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function nav(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+  const t = {dashboard:'Dashboard',call:'Call customer',orders:'Saare orders'};
+  document.getElementById('page-title').textContent = t[id];
+  if (id === 'orders') loadOrders();
+  if (id === 'dashboard') loadDashboard();
+}
+
+async function loadDashboard() {
+  const res = await fetch('/orders');
+  const orders = await res.json();
+  document.getElementById('total-orders').textContent = orders.length;
+  document.getElementById('confirmed-orders').textContent = orders.filter(o => o['Status'] === 'Confirmed').length;
+  document.getElementById('delivered-orders').textContent = orders.filter(o => o['Delivery'] === 'Delivered').length;
+  document.getElementById('pending-orders').textContent = orders.filter(o => o['Delivery'] === 'Pending').length;
+  const tbody = document.getElementById('recent-tbody');
+  const recent = orders.slice(-5).reverse();
+  if (!recent.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:#555;text-align:center;padding:20px">Koi order nahi abhi</td></tr>'; return; }
+  tbody.innerHTML = recent.map(o => `
+    <tr>
+      <td>${o['Order No']||''}</td>
+      <td>${o['Customer Name']||''}</td>
+      <td>${o['Order Details']||''}</td>
+      <td><span class="badge ${o['Status']==='Confirmed'?'ok':'pend'}">${o['Status']||''}</span></td>
+    </tr>`).join('');
+}
+
+async function loadOrders() {
+  const res = await fetch('/orders');
+  const orders = await res.json();
+  const tbody = document.getElementById('orders-tbody');
+  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:#555;text-align:center;padding:20px">Koi order nahi abhi</td></tr>'; return; }
+  tbody.innerHTML = orders.reverse().map(o => `
+    <tr>
+      <td>${o['Order No']||''}</td>
+      <td>${o['Date']||''}</td>
+      <td>${o['Customer Name']||''}</td>
+      <td>${o['Phone']||''}</td>
+      <td>${o['Order Details']||''}</td>
+      <td>${o['Address']||''}</td>
+      <td><span class="badge ok">${o['Status']||''}</span></td>
+      <td><span class="badge ${o['Delivery']==='Delivered'?'ok':'pend'}">${o['Delivery']||''}</span></td>
+    </tr>`).join('');
+}
+
+async function makeCall() {
+  const phone = document.getElementById('phone-input').value.trim();
+  if (!phone) { document.getElementById('phone-input').focus(); return; }
+  const btn = document.getElementById('call-btn');
+  const pulse = document.getElementById('pulse');
+  const log = document.getElementById('call-log');
+  btn.disabled = true;
+  pulse.classList.add('show');
+  log.innerHTML = '<div class="log-line purple">→ Call connect ho rahi hai...</div>';
+  try {
+    const res = await fetch('/make-call', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ phone })
+    });
+    const data = await res.json();
+    if (data.success) {
+      log.innerHTML += '<div class="log-line green">✓ Call place ho gayi: ' + phone + '</div>';
+      log.innerHTML += '<div class="log-line purple">→ AI customer se baat kar raha hai...</div>';
+      log.innerHTML += '<div class="log-line" style="color:#555">— Order complete hone par Excel mein save ho jayega</div>';
+    } else {
+      log.innerHTML += '<div class="log-line" style="color:#e05555">✗ Error: ' + data.error + '</div>';
+    }
+  } catch(e) {
+    log.innerHTML += '<div class="log-line" style="color:#e05555">✗ Server se connect nahi hua</div>';
+  }
+  btn.disabled = false;
+  pulse.classList.remove('show');
+}
+
+function downloadOrders() {
+  window.location.href = '/download';
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
