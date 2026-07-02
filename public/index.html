@@ -60,6 +60,7 @@ tr:hover td{background:#111}
   <div class="nav-item active" onclick="nav('dashboard',this)"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
   <div class="nav-item" onclick="nav('call',this)"><i class="ti ti-phone-outgoing"></i> Call customer</div>
   <div class="nav-item" onclick="nav('orders',this)"><i class="ti ti-clipboard-list"></i> Orders</div>
+  <div class="nav-item" onclick="nav('availability',this)"><i class="ti ti-box"></i> Availability</div>
   <div style="flex:1"></div>
   <div class="nav-item" style="color:#e05555" onclick="alert('Server band karo terminal se: Ctrl+C')"><i class="ti ti-power"></i> Stop server</div>
 </div>
@@ -122,19 +123,40 @@ tr:hover td{background:#111}
       </div>
     </div>
 
+    <!-- AVAILABILITY -->
+    <div class="section" id="sec-availability">
+      <div class="card">
+        <div class="card-head">
+          Product availability
+          <button class="btn btn-outline" onclick="loadAvailability()"><i class="ti ti-refresh"></i> Refresh</button>
+        </div>
+        <input type="text" id="availability-search" placeholder="Product search karein..." oninput="renderAvailability()" />
+        <div style="overflow-x:auto">
+        <table><thead><tr>
+          <th>Product</th><th>Category</th><th>Size</th><th>Price (Rs)</th><th>Stock</th>
+        </tr></thead>
+        <tbody id="availability-tbody"><tr><td colspan="5" style="color:#555;text-align:center;padding:20px">Loading...</td></tr></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
+let availabilityData = [];
+
 function nav(id, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('sec-' + id).classList.add('active');
   el.classList.add('active');
-  const t = {dashboard:'Dashboard',call:'Call customer',orders:'Saare orders'};
+  const t = {dashboard:'Dashboard',call:'Call customer',orders:'Saare orders',availability:'Product availability'};
   document.getElementById('page-title').textContent = t[id];
   if (id === 'orders') loadOrders();
   if (id === 'dashboard') loadDashboard();
+  if (id === 'availability') loadAvailability();
 }
 
 async function loadDashboard() {
@@ -206,6 +228,37 @@ async function makeCall() {
 
 function downloadOrders() {
   window.location.href = '/download';
+}
+
+async function loadAvailability() {
+  try {
+    const res = await fetch('/availability');
+    availabilityData = await res.json();
+    renderAvailability();
+  } catch(e) {
+    document.getElementById('availability-tbody').innerHTML =
+      '<tr><td colspan="5" style="color:#e05555;text-align:center;padding:20px">Load nahi ho paya</td></tr>';
+  }
+}
+
+function renderAvailability() {
+  const q = (document.getElementById('availability-search').value || '').toLowerCase().trim();
+  const tbody = document.getElementById('availability-tbody');
+  const rows = availabilityData.filter(p => !q || (p.Product || '').toLowerCase().includes(q));
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#555;text-align:center;padding:20px">Koi product nahi mila</td></tr>'; return; }
+  tbody.innerHTML = rows.map(p => {
+    const stock = p.Stock ?? 0;
+    const cls = stock === 0 ? 'pend' : (stock <= 10 ? 'pend' : 'ok');
+    const label = stock === 0 ? 'Out of stock' : stock;
+    return `
+    <tr>
+      <td>${p.Product || ''}</td>
+      <td>${p.Category || ''}</td>
+      <td>${p.Size || ''}</td>
+      <td>${p['Price (Rs)'] ?? ''}</td>
+      <td><span class="badge ${cls}">${label}</span></td>
+    </tr>`;
+  }).join('');
 }
 
 loadDashboard();

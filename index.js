@@ -43,12 +43,19 @@ if (fs.existsSync(EXCEL_FILE)) {
   } catch(e) {}
 }
 
+const PRODUCTS_FILE = path.join(__dirname, 'products.xlsx');
+
 let productData = [];
 let productList = '';
 try {
-  const wb2 = XLSX.readFile('products.xlsx');
+  const wb2 = XLSX.readFile(PRODUCTS_FILE);
   const ws2 = wb2.Sheets['Products'];
   productData = XLSX.utils.sheet_to_json(ws2);
+  // Purani products.xlsx mein Stock column nahi hoga to default 100 laga do,
+  // taaki purani file ke saath bhi crash na ho.
+  for (const p of productData) {
+    if (p.Stock == null || isNaN(p.Stock)) p.Stock = 100;
+  }
   // Har product ke saare variant prices group karo (size mention nahi karna,
   // sirf price options AI ko dena hai taaki customer ko "100, 300, 500 wala"
   // bata sake, "100ml, 200ml" nahi).
@@ -66,24 +73,44 @@ try {
   console.log('Product file nahi mili:', e.message);
 }
 
+// productData (jisme har row ka Stock number hai) ko wapas products.xlsx mein
+// likh deta hai. Order ke baad stock ghatane ke liye ye call hota hai, taaki
+// website refresh karne par naya stock turant dikhe aur server restart hone
+// par bhi stock wahi rahe jahan chhoda tha.
+function saveProductsFile() {
+  try {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(productData);
+    ws['!cols'] = [{wch:5},{wch:25},{wch:15},{wch:10},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Products');
+    XLSX.writeFile(wb, PRODUCTS_FILE);
+  } catch(e) {
+    console.log('Stock save karne mein error:', e.message);
+  }
+}
+
 // Parses an order string that may contain multiple items, e.g.
-// "Parle G x2, Colgate x1" and returns a per-item breakdown plus a total.
-function getProductPrice(orderDetails) {
-  if (!orderDetails) return { breakdown: '', total: 0 };
+// "Parle G x2, Colgate x1" and returns the matched product ROW (so caller
+// can also read/change its Stock), the quantity, and the line total.
+// This is the single source of truth for "which exact variant row did this
+// order segment match" — used both for pricing and for stock deduction, so
+// the two always agree on the same row.
+function parseOrderItems(orderDetails) {
+  if (!orderDetails) return [];
 
   // Split on commas/semicolons/"and" so each segment is (ideally) one item.
   const segments = orderDetails.split(/,|;| and /i).map(s => s.trim()).filter(Boolean);
   const segmentsToProcess = segments.length ? segments : [orderDetails];
 
-  const lines = [];
-  let total = 0;
+  const items = [];
 
   for (const segment of segmentsToProcess) {
     const lowerSegment = segment.toLowerCase();
     let matched = null;
     for (const p of productData) {
       if (p.Product && lowerSegment.includes(p.Product.toLowerCase())) {
-        matched = p;
+        matched = p; // first match = cheapest/first variant (s1), same as the
+                      // "assume cheapest by default" rule the AI is told to follow
         break;
       }
     }
@@ -92,13 +119,33 @@ function getProductPrice(orderDetails) {
     const qtyMatch = segment.match(/x\s*(\d+)/i) || segment.match(/(\d+)\s*x/i);
     const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
     const rate = matched['Price (Rs)'] || 0;
-    const lineTotal = rate * qty;
 
-    lines.push(`${matched.Product} x${qty} @${rate} = ${lineTotal}`);
-    total += lineTotal;
+    items.push({ row: matched, qty, rate, lineTotal: rate * qty });
   }
 
+  return items;
+}
+
+// Wraps parseOrderItems to build the human-readable breakdown + total that
+// gets written into the Orders sheet (same shape as before).
+function getProductPrice(orderDetails) {
+  const items = parseOrderItems(orderDetails);
+  const lines = items.map(i => `${i.row.Product} (${i.row.Size}) x${i.qty} @${i.rate} = ${i.lineTotal}`);
+  const total = items.reduce((sum, i) => sum + i.lineTotal, 0);
   return { breakdown: lines.join(' | '), total };
+}
+
+// Ghatata hai stock exact variant row se jo order mein match hua tha
+// (Product AND Size dono match, sirf naam se nahi). 0 se neeche kabhi nahi
+// jaayega. Aakhir mein products.xlsx file mein save kar deta hai taaki
+// website refresh karte hi naya stock dikhe.
+function decrementStock(orderDetails) {
+  const items = parseOrderItems(orderDetails);
+  if (!items.length) return;
+  for (const item of items) {
+    item.row.Stock = Math.max(0, (item.row.Stock || 0) - item.qty);
+  }
+  saveProductsFile();
 }
 
 function saveOrder(orderData) {
@@ -134,6 +181,11 @@ function saveOrder(orderData) {
   else { XLSX.utils.book_append_sheet(wb, ws, 'Orders'); }
   XLSX.writeFile(wb, EXCEL_FILE);
   console.log('Order saved! Breakdown:', breakdown, '| Total:', total);
+
+  // Order confirm hote hi us exact variant ka stock kam kar do
+  // (jaise "4 Colgate" bola to jo Colgate size default match hua sirf uska
+  // stock ghatega, baaki Colgate variants untouched rahenge).
+  decrementStock(orderData.order);
 }
 
 async function sendSMS(phone, naam, order) {
@@ -324,9 +376,24 @@ app.get('/orders', (req, res) => {
   } catch(e) { res.json([]); }
 });
 
+// Website ke "Product availability" page ke liye — har variant (product +
+// size) ka naam, price, aur bacha hua stock deta hai.
+app.get('/availability', (req, res) => {
+  try {
+    const data = productData.map(p => ({
+      Product: p.Product,
+      Category: p.Category,
+      Size: p.Size,
+      'Price (Rs)': p['Price (Rs)'],
+      Stock: p.Stock
+    }));
+    res.json(data);
+  } catch(e) { res.json([]); }
+});
+
 app.get('/download', (req, res) => {
   if (fs.existsSync(EXCEL_FILE)) res.download(EXCEL_FILE);
   else res.status(404).send('No orders yet');
 });
 
-app.listen(3000, () => console.log('Server chal raha hai port 3000 pe!'));
+app.listen(3000, () => console.log('Server chal raha hai port 3000 pe!')); 

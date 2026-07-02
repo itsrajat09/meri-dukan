@@ -114,17 +114,22 @@ const products = [
   {name:'Catch Salt', category:'Salt', s1:'500g', p1:14, s2:'1kg', p2:26, s3:'2kg', p3:50},
 ];
 
+// Har variant ka starting stock. Isse badalne ke liye yahan number change karo
+// aur `node products.js` dobara chalao (isse orders.xlsx/live stock reset nahi hota,
+// sirf products.xlsx re-generate hota hai).
+const STARTING_STOCK = 100;
+
 const rows = [];
 let sr = 1;
 products.forEach(p => {
-  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s1, 'Price (Rs)': p.p1 });
-  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s2, 'Price (Rs)': p.p2 });
-  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s3, 'Price (Rs)': p.p3 });
+  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s1, 'Price (Rs)': p.p1, 'Stock': STARTING_STOCK });
+  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s2, 'Price (Rs)': p.p2, 'Stock': STARTING_STOCK });
+  rows.push({ 'Sr': sr++, 'Product': p.name, 'Category': p.category, 'Size': p.s3, 'Price (Rs)': p.p3, 'Stock': STARTING_STOCK });
 });
 
 const wb = XLSX.utils.book_new();
 const ws = XLSX.utils.json_to_sheet(rows);
-ws['!cols'] = [{wch:5},{wch:25},{wch:15},{wch:10},{wch:12}];
+ws['!cols'] = [{wch:5},{wch:25},{wch:15},{wch:10},{wch:12},{wch:10}];
 XLSX.utils.book_append_sheet(wb, ws, 'Products');
 XLSX.writeFile(wb, 'products.xlsx');
-console.log('Done! ' + rows.length + ' products saved!');
+console.log('Done! ' + rows.length + ' products saved, har variant ka stock ' + STARTING_STOCK + '!');
