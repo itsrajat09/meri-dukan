@@ -43,12 +43,10 @@ if (fs.existsSync(EXCEL_FILE)) {
   } catch(e) {}
 }
 
-const PRODUCTS_FILE = path.join(__dirname, 'products.xlsx');
-
 let productData = [];
 let productList = '';
 try {
-  const wb2 = XLSX.readFile(PRODUCTS_FILE);
+  const wb2 = XLSX.readFile('products.xlsx');
   const ws2 = wb2.Sheets['Products'];
   productData = XLSX.utils.sheet_to_json(ws2);
   // Purani products.xlsx mein Stock column nahi hoga to default 100 laga do,
@@ -83,34 +81,34 @@ function saveProductsFile() {
     const ws = XLSX.utils.json_to_sheet(productData);
     ws['!cols'] = [{wch:5},{wch:25},{wch:15},{wch:10},{wch:12},{wch:10}];
     XLSX.utils.book_append_sheet(wb, ws, 'Products');
-    XLSX.writeFile(wb, PRODUCTS_FILE);
+    XLSX.writeFile(wb, 'products.xlsx');
   } catch(e) {
     console.log('Stock save karne mein error:', e.message);
   }
 }
 
 // Parses an order string that may contain multiple items, e.g.
-// "Parle G x2, Colgate x1" and returns the matched product ROW (so caller
-// can also read/change its Stock), the quantity, and the line total.
-// This is the single source of truth for "which exact variant row did this
-// order segment match" — used both for pricing and for stock deduction, so
-// the two always agree on the same row.
-function parseOrderItems(orderDetails) {
-  if (!orderDetails) return [];
+// "Parle G x2, Colgate x1" and returns a per-item breakdown plus a total.
+// Also returns the matched product ROW itself (not just its price) so that
+// stock can be decremented from the exact same variant that was priced —
+// the pricing and the stock-deduction always agree on which row it was.
+function getProductPrice(orderDetails) {
+  if (!orderDetails) return { breakdown: '', total: 0, items: [] };
 
   // Split on commas/semicolons/"and" so each segment is (ideally) one item.
   const segments = orderDetails.split(/,|;| and /i).map(s => s.trim()).filter(Boolean);
   const segmentsToProcess = segments.length ? segments : [orderDetails];
 
+  const lines = [];
   const items = [];
+  let total = 0;
 
   for (const segment of segmentsToProcess) {
     const lowerSegment = segment.toLowerCase();
     let matched = null;
     for (const p of productData) {
       if (p.Product && lowerSegment.includes(p.Product.toLowerCase())) {
-        matched = p; // first match = cheapest/first variant (s1), same as the
-                      // "assume cheapest by default" rule the AI is told to follow
+        matched = p;
         break;
       }
     }
@@ -119,29 +117,23 @@ function parseOrderItems(orderDetails) {
     const qtyMatch = segment.match(/x\s*(\d+)/i) || segment.match(/(\d+)\s*x/i);
     const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
     const rate = matched['Price (Rs)'] || 0;
+    const lineTotal = rate * qty;
 
-    items.push({ row: matched, qty, rate, lineTotal: rate * qty });
+    lines.push(`${matched.Product} x${qty} @${rate} = ${lineTotal}`);
+    total += lineTotal;
+    items.push({ row: matched, qty });
   }
 
-  return items;
-}
-
-// Wraps parseOrderItems to build the human-readable breakdown + total that
-// gets written into the Orders sheet (same shape as before).
-function getProductPrice(orderDetails) {
-  const items = parseOrderItems(orderDetails);
-  const lines = items.map(i => `${i.row.Product} (${i.row.Size}) x${i.qty} @${i.rate} = ${i.lineTotal}`);
-  const total = items.reduce((sum, i) => sum + i.lineTotal, 0);
-  return { breakdown: lines.join(' | '), total };
+  return { breakdown: lines.join(' | '), total, items };
 }
 
 // Ghatata hai stock exact variant row se jo order mein match hua tha
-// (Product AND Size dono match, sirf naam se nahi). 0 se neeche kabhi nahi
-// jaayega. Aakhir mein products.xlsx file mein save kar deta hai taaki
-// website refresh karte hi naya stock dikhe.
-function decrementStock(orderDetails) {
-  const items = parseOrderItems(orderDetails);
-  if (!items.length) return;
+// (Product AND Size dono match, sirf naam se nahi, kyunki row khud
+// getProductPrice se pass hoti hai). 0 se neeche kabhi nahi jaayega.
+// Aakhir mein products.xlsx file mein save kar deta hai taaki website
+// refresh karte hi naya stock dikhe.
+function decrementStock(items) {
+  if (!items || !items.length) return;
   for (const item of items) {
     item.row.Stock = Math.max(0, (item.row.Stock || 0) - item.qty);
   }
@@ -157,7 +149,7 @@ function saveOrder(orderData) {
   } else {
     wb = XLSX.utils.book_new();
   }
-  const { breakdown, total } = getProductPrice(orderData.order);
+  const { breakdown, total, items } = getProductPrice(orderData.order);
   existingData.push({
     'Order No': `RT-${String(orderCounter++).padStart(4, '0')}`,
     'Date': new Date().toLocaleDateString('en-IN'),
@@ -182,10 +174,8 @@ function saveOrder(orderData) {
   XLSX.writeFile(wb, EXCEL_FILE);
   console.log('Order saved! Breakdown:', breakdown, '| Total:', total);
 
-  // Order confirm hote hi us exact variant ka stock kam kar do
-  // (jaise "4 Colgate" bola to jo Colgate size default match hua sirf uska
-  // stock ghatega, baaki Colgate variants untouched rahenge).
-  decrementStock(orderData.order);
+  // Order confirm hote hi us exact variant ka stock kam kar do.
+  decrementStock(items);
 }
 
 async function sendSMS(phone, naam, order) {
@@ -248,35 +238,13 @@ STRICT RULES:
   Example: if customer asks "Himalaya shampoo ke kaunse variant hain?", reply like "Rs75, Rs140, aur Rs230 wala hai, kaunsa chahiye?" — NOT "100ml, 200ml, 400ml".
 - Always assume the cheapest/first price by default if customer doesn't specify. Do not ask which variant unless the customer asks or wants to choose.
 - When confirming any item, state the price in the same sentence, e.g. "Patanjali Kesh Kanti liya, Rs60."
-
-UPSELLING (important — sell as much as possible):
-- After EVERY item the customer confirms, immediately suggest ONE more different, relevant product from the list (e.g. bought atta -> suggest dal or oil; bought shampoo -> suggest soap or face wash).
-- If the customer accepts, note it and suggest another new item. Keep doing this — there is no fixed limit — as long as the customer keeps saying yes or keeps adding things themselves.
-- Only stop suggesting once the customer clearly declines or says something like "bas", "nahi chahiye", "itna hi", "aur kuch nahi" — then immediately move on and never suggest again in that call.
-- Never suggest the same product twice.
-
-BE BRIEF, NEVER NARRATE YOURSELF:
-- Never describe what you are doing internally. Do NOT say things like "order note kar liya", "naam save ho gaya", "address save ho gaya", "aapki details save ho gayi hain" — the customer does not need to hear this, just move to the next question directly.
-- After noting the last order item (once customer has declined further suggestions), just ask for name — do not summarize the order back before asking.
-- After getting the name, just ask for address — do not repeat the name back.
-- After getting the address, just give the final total + a short thank-you and end — do not repeat the address back.
-- Max 1 short sentence per reply. Never explain, never repeat something the customer or you already said, never add filler like "theek hai", "bilkul", "ji haan" more than once in a row.
-
-HINGLISH LANGUAGE ACCURACY (very important — many past mistakes here, follow exactly):
+- After the main order is noted, try to upsell ONE relevant extra product from the list, but don't push again if customer declines.
 - ALWAYS reply ONLY in Roman script Hinglish (Hindi + English words written in English letters). NEVER output Devanagari (हिंदी) characters, not even one word.
-- Use simple, everyday spoken Hindi words a Delhi shopkeeper would use. Do NOT invent, mix up, or mis-transliterate words. Do NOT insert random unrelated English or Hindi words into a sentence.
-- Keep grammar simple and short — prefer common shopkeeper phrases over complex sentences, complex sentences are where mistakes happen.
-- Follow these exact reference phrases (reuse this style, don't deviate):
-  - Greeting: "Namaste! Rajat Traders, boliye kya chahiye?"
-  - Item confirmed + upsell: "[Product] liya, Rs[price]. [Suggested product] bhi le lijiye, Rs[price]?"
-  - Item not available: "[Product] nahi hai abhi, [alternative] le lenge?"
-  - Ask name (only after upsell declined): "Naam bata dijiye order ke liye."
-  - Ask address (only after name given): "Delivery address batayein."
-  - Final close: "Total Rs[amount], [naam] ji. Dhanyawad, jaldi pahunch jayega!"
 - Example of CORRECT style: "Namaste! Aapko kya chahiye?"
 - Example of WRONG style (do NOT do this): "नमस्ते! आपको क्या चाहिए?"
 - Ask ONE question at a time only
-- Order first (with upselling as above), then name, then address
+- Order first, then name, then address
+- Max 2 short sentences per reply
 - Stay focused: do not repeat or re-ask things already confirmed
 - When order+name+address collected, output on new line: SAVE|Name|Address|Product xQty
 - If customer orders multiple items, separate them with commas in the same field, e.g. SAVE|Name|Address|Parle G x2, Colgate x1
@@ -296,8 +264,7 @@ HINGLISH LANGUAGE ACCURACY (very important — many past mistakes here, follow e
     const result = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: messages,
-      max_tokens: 90,
-      temperature: 0.3
+      max_tokens: 150
     });
 
     let aiResponse = result.choices[0].message.content;
@@ -312,8 +279,7 @@ HINGLISH LANGUAGE ACCURACY (very important — many past mistakes here, follow e
           { role: 'assistant', content: aiResponse },
           { role: 'user', content: 'Reminder: reply ONLY in Roman/English letters (Hinglish), no Devanagari script at all. Rewrite your last reply in Roman letters only.' }
         ],
-        max_tokens: 90,
-        temperature: 0.3
+        max_tokens: 150
       });
       aiResponse = retryResult.choices[0].message.content;
     }
@@ -396,4 +362,4 @@ app.get('/download', (req, res) => {
   else res.status(404).send('No orders yet');
 });
 
-app.listen(3000, () => console.log('Server chal raha hai port 3000 pe!')); 
+app.listen(3000, () => console.log('Server chal raha hai port 3000 pe!'));
