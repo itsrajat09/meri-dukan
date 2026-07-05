@@ -2,7 +2,7 @@ require('./load-env')(); // loads .env into process.env
 
 const express = require('express');
 const twilio = require('twilio');
-const Groq = require('groq-sdk');
+const { GoogleGenAI } = require('@google/genai');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
@@ -14,10 +14,10 @@ app.use(express.json());
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 
-const REQUIRED_ENV = { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, GROQ_API_KEY, PUBLIC_BASE_URL };
+const REQUIRED_ENV = { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, GEMINI_API_KEY, PUBLIC_BASE_URL };
 const missing = Object.entries(REQUIRED_ENV).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) {
   console.error('Missing required environment variables:', missing.join(', '));
@@ -25,7 +25,8 @@ if (missing.length) {
   process.exit(1);
 }
 
-const groq = new Groq({ apiKey: GROQ_API_KEY });
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 const calls = {};
 const pendingCalls = {};
@@ -261,37 +262,30 @@ STRICT RULES:
 - Product name exactly as in list
 - CALL_END only when customer says bye/shukriya/dhanyawad/thank you`;
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...calls[callSid].history.slice(0, -1).map(h => ({
-        role: h.role === 'model' ? 'assistant' : 'user',
-        content: h.parts[0].text
-      })),
-      { role: 'user', content: userSpeech }
-    ];
+   const contents = calls[callSid].history.slice(0, -1).concat([{ role: 'user', parts: [{ text: userSpeech }] }]);
 
-    const result = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: messages,
-      max_tokens: 150
-    });
+const result = await ai.models.generateContent({
+  model: GEMINI_MODEL,
+  contents: contents,
+  config: { systemInstruction: systemPrompt, maxOutputTokens: 150 }
+});
 
-    let aiResponse = result.choices[0].message.content;
+let aiResponse = result.text;
 
     // Safety net: if the model slipped into Devanagari script, retry once with a firmer reminder.
     const devanagariRegex = /[\u0900-\u097F]/;
     if (devanagariRegex.test(aiResponse)) {
-      const retryResult = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          ...messages,
-          { role: 'assistant', content: aiResponse },
-          { role: 'user', content: 'Reminder: reply ONLY in Roman/English letters (Hinglish), no Devanagari script at all. Rewrite your last reply in Roman letters only.' }
-        ],
-        max_tokens: 150
-      });
-      aiResponse = retryResult.choices[0].message.content;
-    }
+  const retryContents = contents.concat([
+    { role: 'model', parts: [{ text: aiResponse }] },
+    { role: 'user', parts: [{ text: 'Reminder: reply ONLY in Roman/English letters (Hinglish), no Devanagari script at all. Rewrite your last reply in Roman letters only.' }] }
+  ]);
+  const retryResult = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: retryContents,
+    config: { systemInstruction: systemPrompt, maxOutputTokens: 150 }
+  });
+  aiResponse = retryResult.text;
+}
 
     calls[callSid].history.push({ role: 'model', parts: [{ text: aiResponse }] });
     console.log('AI:', aiResponse);
