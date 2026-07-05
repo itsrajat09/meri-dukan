@@ -58,13 +58,18 @@ try {
   // sirf price options AI ko dena hai taaki customer ko "100, 300, 500 wala"
   // bata sake, "100ml, 200ml" nahi).
   const variantPrices = {};
+  const variantStock = {};
   for (const p of productData) {
     if (!p.Product) continue;
     if (!variantPrices[p.Product]) variantPrices[p.Product] = [];
     if (p['Price (Rs)'] != null) variantPrices[p.Product].push(p['Price (Rs)']);
+    variantStock[p.Product] = (variantStock[p.Product] || 0) + (p.Stock || 0);
   }
+  // Har product ke naam ke saath uska total bacha hua stock bhi bhej rahe hain
+  // (jaise "Dettol Soap:Rs45(Stock:80)"), taaki AI zyada stock waale products
+  // ko upsell mein priority de sake aur stock jaldi khaali ho.
   productList = Object.entries(variantPrices)
-    .map(([name, prices]) => `${name}:Rs${prices.join('/Rs')}`)
+    .map(([name, prices]) => `${name}:Rs${prices.join('/Rs')}(Stock:${variantStock[name] || 0})`)
     .join(', ');
   console.log('Products loaded:', productData.length, '| Unique:', Object.keys(variantPrices).length);
 } catch(e) {
@@ -238,7 +243,11 @@ STRICT RULES:
   Example: if customer asks "Himalaya shampoo ke kaunse variant hain?", reply like "Rs75, Rs140, aur Rs230 wala hai, kaunsa chahiye?" — NOT "100ml, 200ml, 400ml".
 - Always assume the cheapest/first price by default if customer doesn't specify. Do not ask which variant unless the customer asks or wants to choose.
 - When confirming any item, state the price in the same sentence, e.g. "Patanjali Kesh Kanti liya, Rs60."
-- After the main order is noted, try to upsell ONE relevant extra product from the list, but don't push again if customer declines.
+- SELLING IS YOUR TOP PRIORITY. After EVERY item the customer confirms, immediately suggest ONE more relevant complementary product from the list before moving on (e.g. after soap, suggest shampoo; after biscuits, suggest a cold drink).
+- The list shows each product's remaining stock as (Stock:N). When choosing what to upsell, PREFER products with higher stock numbers — the goal is to sell as much of the high-stock inventory as possible during this call.
+- If the customer declines one upsell suggestion, immediately try ONE different product instead of giving up completely. Only stop upselling after the customer has declined twice in a row, or clearly says they don't want anything else / are in a hurry.
+- Before ending the call (CALL_END), always do one final check: ask "Aur kuch chahiye?" or similar, and if a call is likely to end soon, prioritize confirming any item the customer already showed interest in over starting a new pitch.
+- NEVER let the call end while an item the customer has verbally agreed to ("haan", "theek hai", "de do") is still unconfirmed — immediately fold it into the order and update the SAVE| line before saying goodbye.
 - ALWAYS reply ONLY in Roman script Hinglish (Hindi + English words written in English letters). NEVER output Devanagari (हिंदी) characters, not even one word.
 - Example of CORRECT style: "Namaste! Aapko kya chahiye?"
 - Example of WRONG style (do NOT do this): "नमस्ते! आपको क्या चाहिए?"
