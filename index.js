@@ -267,7 +267,7 @@ STRICT RULES:
 const result = await ai.models.generateContent({
   model: GEMINI_MODEL,
   contents: contents,
-  config: { systemInstruction: systemPrompt, maxOutputTokens: 150 }
+  config: { systemInstruction: systemPrompt, maxOutputTokens: 150, thinkingConfig: { thinkingBudget: 0 } }
 });
 
 let aiResponse = result.text;
@@ -282,7 +282,7 @@ let aiResponse = result.text;
   const retryResult = await ai.models.generateContent({
     model: GEMINI_MODEL,
     contents: retryContents,
-    config: { systemInstruction: systemPrompt, maxOutputTokens: 150 }
+    config: { systemInstruction: systemPrompt, maxOutputTokens: 150, thinkingConfig: { thinkingBudget: 0 } }
   });
   aiResponse = retryResult.text;
 }
