@@ -209,7 +209,7 @@ app.post('/call', async (req, res) => {
     action: '/respond',
     method: 'POST',
     language: 'hi-IN',
-    speechTimeout: '2',
+    speechTimeout: 'auto',
     timeout: '15'
   });
   gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }).prosody({ volume: '+20dB' }, 'Namaste! Rajat Traders mein aapka swagat hai. Kya chahiye aapko?');
@@ -224,7 +224,7 @@ app.post('/respond', async (req, res) => {
   if (!calls[callSid]) calls[callSid] = { history: [], callerNumber: req.body.To, startTime: new Date().toLocaleString('en-IN') };
 
   if (!userSpeech) {
-    const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
+    const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: 'auto', timeout: '15' });
     gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }).prosody({ volume: '+20dB' }, 'Ji boliye?');
     res.type('text/xml');
     res.send(twiml.toString());
@@ -306,12 +306,12 @@ let aiResponse = result.text;
       twiml.hangup();
       delete calls[callSid];
     } else {
-      const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
+      const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: 'auto', timeout: '15' });
       gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }).prosody({ volume: '+20dB' }, aiResponse);
     }
   } catch (err) {
     console.error('ERROR:', err.message);
-    const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
+    const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: 'auto', timeout: '15' });
     gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }).prosody({ volume: '+20dB' }, 'Ek second, dobara boliye please.');
   }
   res.type('text/xml');
