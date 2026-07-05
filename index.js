@@ -254,7 +254,7 @@ STRICT RULES:
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...calls[callSid].history.slice(-5, -1).map(h => ({
+      ...calls[callSid].history.slice(0, -1).map(h => ({
         role: h.role === 'model' ? 'assistant' : 'user',
         content: h.parts[0].text
       })),
@@ -290,7 +290,7 @@ STRICT RULES:
     if (aiResponse.includes('CALL_END')) {
       const clean = aiResponse.replace('CALL_END', '').trim();
       let naam = '', address = '', order = '';
-      const saveMatch = calls[callSid].history.find(h => h.role === 'model' && h.parts[0].text.includes('SAVE|'));
+      const saveMatch = [...calls[callSid].history].reverse().find(h => h.role === 'model' && h.parts[0].text.includes('SAVE|'));
       if (saveMatch) {
         const parts = saveMatch.parts[0].text.split('|');
         naam = parts[1] ? parts[1].trim() : '';
