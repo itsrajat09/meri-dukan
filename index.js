@@ -211,7 +211,7 @@ app.post('/call', async (req, res) => {
     speechTimeout: '2',
     timeout: '15'
   });
-  gather.say({ language: 'hi-IN' }, 'Namaste! Rajat Traders mein aapka swagat hai. Kya chahiye aapko?');
+  gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }, 'Namaste! Rajat Traders mein aapka swagat hai. Kya chahiye aapko?');
   res.type('text/xml');
   res.send(twiml.toString());
 });
@@ -224,7 +224,7 @@ app.post('/respond', async (req, res) => {
 
   if (!userSpeech) {
     const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
-    gather.say({ language: 'hi-IN' }, 'Ji boliye?');
+    gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }, 'Ji boliye?');
     res.type('text/xml');
     res.send(twiml.toString());
     return;
@@ -308,17 +308,17 @@ STRICT RULES:
       }
       saveOrder({ naam, phone: calls[callSid].callerNumber, address, order });
       if (naam && order) await sendSMS(calls[callSid].callerNumber, naam, order);
-      twiml.say({ language: 'hi-IN' }, clean || 'Bahut shukriya! Aapka order note ho gaya. SMS abhi aa jayega. Phir milenge!');
+      twiml.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }, clean || 'Bahut shukriya! Aapka order note ho gaya. SMS abhi aa jayega. Phir milenge!');
       twiml.hangup();
       delete calls[callSid];
     } else {
       const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
-      gather.say({ language: 'hi-IN' }, aiResponse);
+      gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }, aiResponse);
     }
   } catch (err) {
     console.error('ERROR:', err.message);
     const gather = twiml.gather({ input: 'speech', action: '/respond', method: 'POST', language: 'hi-IN', speechTimeout: '2', timeout: '15' });
-    gather.say({ language: 'hi-IN' }, 'Ek second, dobara boliye please.');
+    gather.say({ language: 'hi-IN', voice: 'Polly.Kajal-Neural' }, 'Ek second, dobara boliye please.');
   }
   res.type('text/xml');
   res.send(twiml.toString());
