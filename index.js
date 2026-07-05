@@ -26,7 +26,7 @@ if (missing.length) {
 }
 
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 const calls = {};
 const pendingCalls = {};
